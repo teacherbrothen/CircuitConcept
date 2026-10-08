@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circuit Solver: RIVP Practice</title>
+  
+  <!-- KaTeX CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --border: #cbd5e1;
+      --accent: #2563eb;
+      --glow-green: #10b981;
+      --correct-bg: #d1fae5;
+      --correct-border: #10b981;
+      --error-bg: #fee2e2;
+      --error-border: #ef4444;
+      --given-bg: #f1f5f9;
+      --highlight-source: #bae6fd;
+      --circuit-highlight: #0284c7;
+    }
+
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 24px; display: flex; flex-direction: column; align-items: center; }
+    .container { max-width: 980px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
+
+    header { text-align: center; }
+    h1 { margin: 0 0 8px 0; color: #0f172a; }
+    p.subtitle { margin: 0; color: #64748b; font-size: 0.95rem; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 24px;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    @media (max-width: 768px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    /* SVG Schematic Styling */
+    .svg-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 10px;
+    }
+    svg text {
+      font-family: "KaTeX_Main", "Times New Roman", serif;
+      font-size: 18px;
+      font-weight: bold;
+      fill: #1e293b;
+      font-style: italic;
+      transition: fill 0.25s ease;
+    }
+
+    /* Circuit Highlighting Classes */
+    .circuit-wire, .circuit-comp {
+      transition: stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+    }
+    .hl-wire {
+      stroke: var(--circuit-highlight) !important;
+      stroke-width: 4.5 !important;
+      filter: drop-shadow(0 0 6px rgba(2, 132, 199, 0.5));
+    }
+    .hl-comp {
+      stroke: var(--circuit-highlight) !important;
+      stroke-width: 4 !important;
+      filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.7));
+    }
+    .hl-text {
+      fill: var(--circuit-highlight) !important;
+    }
+
+    /* Table Styling */
+    .table-container { display: flex; flex-direction: column; justify-content: center; }
+    table { width: 100%; border-collapse: collapse; text-align: center; font-size: 1rem; }
+    th, td { border: 1px solid var(--border); padding: 8px; }
+    th { background: #f8fafc; font-weight: 600; color: #334155; height: 42px; }
+    th.row-label, td.row-label { font-weight: bold; background: #f8fafc; width: 65px; }
+
+    /* Remove number spinners */
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+
+    input.cell-input {
+      width: 100%;
+      padding: 9px 4px;
+      text-align: center;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      font-size: 1.05rem;
+      font-variant-numeric: tabular-nums;
+      background: #fff;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+    input.cell-input:focus { border-color: var(--accent); background: #f0f7ff; }
+
+    input.given { background: var(--given-bg); color: #334155; font-weight: 700; cursor: not-allowed; }
+    input.correct { background: var(--correct-bg); border-color: var(--correct-border); color: #065f46; font-weight: bold; }
+    input.incorrect { background: var(--error-bg); border-color: var(--error-border); color: #991b1b; }
+    
+    @keyframes glowPulse {
+      0% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); border-color: #10b981; }
+      50% { box-shadow: 0 0 14px rgba(16, 185, 129, 0.9); border-color: #059669; }
+      100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); border-color: #10b981; }
+    }
+    input.hint-solvable {
+      animation: glowPulse 1.5s infinite;
+      background: #ecfdf5 !important;
+      cursor: pointer;
+    }
+    input.source-highlight { background: var(--highlight-source) !important; border-color: #0284c7 !important; }
+
+    /* Fixed Math Tooltip */
+    #math-tooltip {
+      position: fixed;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.92rem;
+      pointer-events: none;
+      z-index: 9999;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+      transition: opacity 0.15s ease;
+      opacity: 0;
+      transform: translate(-50%, -100%);
+      white-space: nowrap;
+    }
+    #math-tooltip.show { opacity: 1; }
+    #math-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -6px;
+      border-width: 6px;
+      border-style: solid;
+      border-color: #0f172a transparent transparent transparent;
+    }
+
+    /* Buttons */
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    button:active { transform: scale(0.97); }
+    .btn-check { background: #2563eb; color: #fff; }
+    .btn-hint { background: #10b981; color: #fff; }
+    .btn-walkthrough { background: #8b5cf6; color: #fff; }
+    .btn-reset { background: #e2e8f0; color: #475569; }
+
+    .info-card {
+      background: #f0f9ff;
+      border-left: 5px solid #0284c7;
+      padding: 16px 20px;
+      border-radius: 8px;
+      display: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .info-card.active { display: block; }
+    .info-card .reminder { font-size: 0.88rem; color: #475569; margin-bottom: 8px; font-style: italic; }
+    .info-card .step-title { font-weight: bold; color: #0369a1; font-size: 1.05rem; margin-bottom: 6px; }
+    .info-card .step-text { color: #1e293b; font-size: 1rem; margin: 0; line-height: 1.6; }
+    .info-card .step-text .katex-display { margin: 8px 0; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Circuit Solver: RIVP Table</h1>
+    <p class="subtitle">Complete the table using Ohm’s Law and Kirchhoff’s Laws.</p>
+  </header>
+
+  <div class="workspace">
+    <!-- SVG Circuit Diagram with Segmented Elements for Highlighting -->
+    <div class="svg-container">
+      <svg viewBox="0 0 420 300" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        
+        <!-- Battery Symbol -->
+        <g id="comp-battery">
+          <line class="circuit-comp" x1="195" y1="36" x2="195" y2="64" stroke="#1e293b" stroke-width="4" />
+          <line class="circuit-comp" x1="210" y1="28" x2="210" y2="72" stroke="#1e293b" stroke-width="2.5" />
+        </g>
+
+        <!-- Main Feeder Wires -->
+        <path id="wire-top-left" class="circuit-wire" d="M 195 50 L 60 50" fill="none" stroke="#1e293b" stroke-width="2.5" />
+        <path id="wire-return" class="circuit-wire" d="M 330 150 L 360 150 L 360 50 L 210 50" fill="none" stroke="#1e293b" stroke-width="2.5" />
+
+        <!-- Parallel Split Bus (Left) -->
+        <path id="wire-split-upper" class="circuit-wire" d="M 60 50 L 60 100 L 90 100" fill="none" stroke="#1e293b" stroke-width="2.5" />
+        <path id="wire-split-lower" class="circuit-wire" d="M 60 100 L 60 200 L 90 200" fill="none" stroke="#1e293b" stroke-width="2.5" />
+
+        <!-- R1 Branch (Top) -->
+        <g id="branch-1">
+          <path id="resistor-1" class="circuit-comp" d="M 90 100 L 105 100 L 112 88 L 125 112 L 138 88 L 151 112 L 164 88 L 175 100 L 190 100" 
+                fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round" />
+          <text id="label-r1" x="135" y="76" text-anchor="middle">R₁</text>
+        </g>
+
+        <!-- R2 Branch (Bottom) -->
+        <g id="branch-2">
+          <path id="resistor-2" class="circuit-comp" d="M 90 200 L 105 200 L 112 188 L 125 212 L 138 188 L 151 212 L 164 188 L 175 200 L 190 200" 
+                fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round" />
+          <text id="label-r2" x="135" y="235" text-anchor="middle">R₂</text>
+        </g>
+
+        <!-- Parallel Recombination Bus (Right) -->
+        <path id="wire-merge-upper" class="circuit-wire" d="M 190 100 L 220 100 L 220 150" fill="none" stroke="#1e293b" stroke-width="2.5" />
+        <path id="wire-merge-lower" class="circuit-wire" d="M 190 200 L 220 200 L 220 150" fill="none" stroke="#1e293b" stroke-width="2.5" />
+
+        <!-- Series R3 Branch -->
+        <g id="branch-3">
+          <path id="wire-to-r3" class="circuit-wire" d="M 220 150 L 250 150" fill="none" stroke="#1e293b" stroke-width="2.5" />
+          <path id="resistor-3" class="circuit-comp" d="M 250 150 L 260 150 L 267 138 L 278 162 L 289 138 L 300 162 L 311 138 L 320 150 L 330 150" 
+                fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round" />
+          <text id="label-r3" x="290" y="125" text-anchor="middle">R₃</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Table Section -->
+    <div class="table-container">
+      <table id="rivp-table">
+        <thead>
+          <tr>
+            <th class="row-label"></th>
+            <th>\(R\ (\Omega)\)</th>
+            <th>\(I\ (\text{A})\)</th>
+            <th>\(V\ (\text{V})\)</th>
+            <th>\(P\ (\text{W})\)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamic Rows -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="controls">
+    <button class="btn-check" onclick="checkAnswers()">Check Answers</button>
+    <button class="btn-hint" onclick="toggleHint()">Hint (Show Solvable)</button>
+    <button class="btn-walkthrough" onclick="stepWalkthrough()">Walk Me Through It</button>
+    <button class="btn-reset" onclick="resetTable()">Reset</button>
+  </div>
+
+  <!-- Explanation Card -->
+  <div id="info-box" class="info-card">
+    <div class="reminder">💡 Reminder: Circuits are like puzzles—there is more than one valid way to solve them! This is just one possible route.</div>
+    <div id="step-title" class="step-title"></div>
+    <div id="step-desc" class="step-text"></div>
+  </div>
+</div>
+
+<!-- Floating Math Tooltip -->
+<div id="math-tooltip"></div>
+
+<script>
+  const solution = {
+    1:     { R: 30.0, I: 0.50, V: 15.0, P: 7.50 },
+    2:     { R: 20.0, I: 0.75, V: 15.0, P: 11.25 },
+    3:     { R: 48.0, I: 1.25, V: 60.0, P: 75.0 },
+    Total: { R: 60.0, I: 1.25, V: 75.0, P: 93.75 }
+  };
+
+  const givens = {
+    "1-I": 0.50,
+    "1-P": 7.5,
+    "2-R": 20.0,
+    "3-I": 1.25,
+    "3-V": 60,
+    "Total-V": 75
+  };
+
+  const walkthroughSteps = [
+    {
+      target: "1-V",
+      sources: ["1-I", "1-P"],
+      highlight: "r1",
+      val: 15.0,
+      title: "Step 1: Row 1 Voltage",
+      desc: "Using the power formula in Row 1: \\[V_1 = \\frac{P_1}{I_1} = \\frac{7.50\\text{ W}}{0.50\\text{ A}} = 15.0\\text{ V}\\]"
+    },
+    {
+      target: "1-R",
+      sources: ["1-V", "1-I"],
+      highlight: "r1",
+      val: 30.0,
+      title: "Step 2: Row 1 Resistance",
+      desc: "Using Ohm's Law in Row 1: \\[R_1 = \\frac{V_1}{I_1} = \\frac{15.0\\text{ V}}{0.50\\text{ A}} = 30.0\\,\\Omega\\]"
+    },
+    {
+      target: "3-R",
+      sources: ["3-V", "3-I"],
+      highlight: "r3",
+      val: 48.0,
+      title: "Step 3: Row 3 Resistance",
+      desc: "Using Ohm's Law in Row 3: \\[R_3 = \\frac{V_3}{I_3} = \\frac{60.0\\text{ V}}{1.25\\text{ A}} = 48.0\\,\\Omega\\]"
+    },
+    {
+      target: "3-P",
+      sources: ["3-V", "3-I"],
+      highlight: "r3",
+      val: 75.0,
+      title: "Step 4: Row 3 Power",
+      desc: "Using the power formula in Row 3: \\[P_3 = V_3 \\cdot I_3 = 60.0\\text{ V} \\cdot 1.25\\text{ A} = 75.0\\text{ W}\\]"
+    },
+    {
+      target: "Total-I",
+      sources: ["3-I"],
+      highlight: "loop-all",
+      val: 1.25,
+      title: "Step 5: Total Current",
+      desc: "Resistor \\(R_3\\) is in series with the main battery loop, so: \\[I_{\\text{total}} = I_3 = 1.25\\text{ A}\\]"
+    },
+    {
+      target: "Total-R",
+      sources: ["Total-V", "Total-I"],
+      highlight: "battery",
+      val: 60.0,
+      title: "Step 6: Total Equivalent Resistance",
+      desc: "Using Ohm's Law for the whole circuit: \\[R_{\\text{total}} = \\frac{V_{\\text{total}}}{I_{\\text{total}}} = \\frac{75.0\\text{ V}}{1.25\\text{ A}} = 60.0\\,\\Omega\\]"
+    },
+    {
+      target: "Total-P",
+      sources: ["Total-V", "Total-I"],
+      highlight: "battery",
+      val: 93.75,
+      title: "Step 7: Total Power",
+      desc: "Using the power formula for the total circuit: \\[P_{\\text{total}} = V_{\\text{total}} \\cdot I_{\\text{total}} = 75.0\\text{ V} \\cdot 1.25\\text{ A} = 93.75\\text{ W}\\]"
+    },
+    {
+      target: "2-V",
+      sources: ["1-V"],
+      highlight: "parallel-pair",
+      val: 15.0,
+      title: "Step 8: Row 2 Voltage",
+      desc: "Resistors \\(R_1\\) and \\(R_2\\) are in parallel: \\[V_2 = V_1 = 15.0\\text{ V}\\] *(Alternatively by KVL around the outer loop: \\(V_2 = V_{\\text{total}} - V_3 = 75.0\\text{ V} - 60.0\\text{ V} = 15.0\\text{ V}\\))*."
+    },
+    {
+      target: "2-I",
+      sources: ["2-V", "2-R"],
+      highlight: "r2",
+      val: 0.75,
+      title: "Step 9: Row 2 Current",
+      desc: "Using Ohm's Law in Row 2: \\[I_2 = \\frac{V_2}{R_2} = \\frac{15.0\\text{ V}}{20.0\\,\\Omega} = 0.75\\text{ A}\\] *(Or by KCL: \\(I_2 = I_{\\text{total}} - I_1 = 1.25\\text{ A} - 0.50\\text{ A} = 0.75\\text{ A}\\))*."
+    },
+    {
+      target: "2-P",
+      sources: ["2-V", "2-I"],
+      highlight: "r2",
+      val: 11.25,
+      title: "Step 10: Row 2 Power",
+      desc: "Using the power formula in Row 2: \\[P_2 = V_2 \\cdot I_2 = 15.0\\text{ V} \\cdot 0.75\\text{ A} = 11.25\\text{ W}\\] Puzzle complete!"
+    }
+  ];
+
+  let currentWalkthroughIndex = 0;
+  let hintsActive = false;
+
+  const rows = ["1", "2", "3", "Total"];
+  const cols = ["R", "I", "V", "P"];
+
+  function renderMath(element) {
+    if (window.renderMathInElement) {
+      renderMathInElement(element || document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "\\[", right: "\\]", display: true },
+          { left: "\\(", right: "\\)", display: false },
+          { left: "$", right: "$", display: false }
+        ],
+        throwOnError: false
+      });
+    }
+  }
+
+  function initTable() {
+    const tbody = document.querySelector("#rivp-table tbody");
+    tbody.innerHTML = "";
+
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      const labelTd = document.createElement("td");
+      labelTd.className = "row-label";
+      labelTd.textContent = r;
+      tr.appendChild(labelTd);
+
+      cols.forEach(c => {
+        const td = document.createElement("td");
+        const key = `${r}-${c}`;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.step = "any";
+        input.className = "cell-input";
+        input.dataset.key = key;
+
+        if (givens[key] !== undefined) {
+          input.value = Number(givens[key]).toFixed(2);
+          input.disabled = true;
+          input.classList.add("given");
+        }
+
+        input.addEventListener("mouseenter", handleCellHover);
+        input.addEventListener("mouseleave", handleCellLeave);
+        input.addEventListener("focus", handleCellHover);
+        input.addEventListener("blur", handleCellLeave);
+
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    renderMath();
+  }
+
+  function checkAnswers() {
+    clearHighlights();
+    rows.forEach(r => {
+      cols.forEach(c => {
+        const key = `${r}-${c}`;
+        const input = document.querySelector(`input[data-key="${key}"]`);
+        if (givens[key] !== undefined) return;
+
+        const studentVal = parseFloat(input.value);
+        const correctVal = solution[r][c];
+
+        if (isNaN(studentVal) || input.value.trim() === "") {
+          input.classList.remove("correct", "incorrect");
+        } else {
+          const isCorrect = Math.abs(studentVal - correctVal) <= Math.max(0.05, 0.02 * correctVal);
+          input.classList.toggle("correct", isCorrect);
+          input.classList.toggle("incorrect", !isCorrect);
+        }
+      });
+    });
+  }
+
+  function getKnowns() {
+    const knowns = {};
+    rows.forEach(r => {
+      cols.forEach(c => {
+        const key = `${r}-${c}`;
+        const input = document.querySelector(`input[data-key="${key}"]`);
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && (givens[key] !== undefined || Math.abs(val - solution[r][c]) <= 0.05)) {
+          knowns[key] = val;
+        }
+      });
+    });
+    return knowns;
+  }
+
+  // Determine solvability, proper formula, and which SVG circuit path to highlight
+  function getSolvableCells(knowns) {
+    const solvable = {};
+
+    // 1. Row-level Ohm's / Power formulas
+    rows.forEach(r => {
+      const knownInRow = cols.filter(c => knowns[`${r}-${c}`] !== undefined);
+      if (knownInRow.length >= 2) {
+        cols.forEach(c => {
+          const key = `${r}-${c}`;
+          if (knowns[key] === undefined) {
+            solvable[key] = {
+              text: `Row ${r}: 2 values known. Use Ohm's Law or \\(P = IV\\).`,
+              highlight: r === "Total" ? "battery" : `r${r}`
+            };
+          }
+        });
+      }
+    });
+
+    // 2. Series Current Loop (I_total = I_3)
+    if (knowns["Total-I"] !== undefined && knowns["3-I"] === undefined) {
+      solvable["3-I"] = { text: "Series Loop: \\(I_3 = I_{\\text{total}}\\).", highlight: "r3" };
+    }
+    if (knowns["3-I"] !== undefined && knowns["Total-I"] === undefined) {
+      solvable["Total-I"] = { text: "Series Loop: \\(I_{\\text{total}} = I_3\\).", highlight: "r3" };
+    }
+
+    // 3. Parallel Voltages (V1 and V2)
+    const v1Known = knowns["1-V"] !== undefined;
+    const v2Known = knowns["2-V"] !== undefined;
+
+    if (v1Known && !v2Known) {
+      solvable["2-V"] = { text: "Parallel Branches: \\(V_2 = V_1\\).", highlight: "parallel-pair" };
+    } else if (v2Known && !v1Known) {
+      solvable["1-V"] = { text: "Parallel Branches: \\(V_1 = V_2\\).", highlight: "parallel-pair" };
+    } else if (!v1Known && !v2Known && knowns["Total-V"] !== undefined && knowns["3-V"] !== undefined) {
+      // Loop Rule (KVL)
+      solvable["1-V"] = { text: "Loop 1 (KVL): \\(V_1 = V_{\\text{total}} - V_3\\).", highlight: "loop-1" };
+      solvable["2-V"] = { text: "Loop 2 (KVL): \\(V_2 = V_{\\text{total}} - V_3\\).", highlight: "loop-2" };
+    }
+
+    // 4. KCL Junction Currents (I_total = I1 + I2)
+    if (knowns["1-I"] !== undefined && knowns["Total-I"] !== undefined && knowns["2-I"] === undefined) {
+      solvable["2-I"] = { text: "Junction Rule (KCL): \\(I_2 = I_{\\text{total}} - I_1\\).", highlight: "parallel-pair" };
+    }
+    if (knowns["2-I"] !== undefined && knowns["Total-I"] !== undefined && knowns["1-I"] === undefined) {
+      solvable["1-I"] = { text: "Junction Rule (KCL): \\(I_1 = I_{\\text{total}} - I_2\\).", highlight: "parallel-pair" };
+    }
+
+    return solvable;
+  }
+
+  // Highlight specific branches or closed loops on the SVG schematic
+  function highlightCircuit(type) {
+    clearCircuitHighlight();
+    if (!type) return;
+
+    const elements = {
+      battery: ["comp-battery"],
+      r1: ["resistor-1", "label-r1", "wire-split-upper", "wire-merge-upper"],
+      r2: ["resistor-2", "label-r2", "wire-split-lower", "wire-merge-lower"],
+      r3: ["resistor-3", "label-r3", "wire-to-r3"],
+      "parallel-pair": [
+        "resistor-1", "label-r1", "wire-split-upper", "wire-merge-upper",
+        "resistor-2", "label-r2", "wire-split-lower", "wire-merge-lower"
+      ],
+      // Loop 1: Battery -> R1 -> R3 -> Battery
+      "loop-1": [
+        "comp-battery", "wire-top-left", "wire-split-upper",
+        "resistor-1", "label-r1", "wire-merge-upper",
+        "wire-to-r3", "resistor-3", "label-r3", "wire-return"
+      ],
+      // Loop 2: Battery -> R2 -> R3 -> Battery (The path for V2 = V_total - V3)
+      "loop-2": [
+        "comp-battery", "wire-top-left", "wire-split-upper", "wire-split-lower",
+        "resistor-2", "label-r2", "wire-merge-lower",
+        "wire-to-r3", "resistor-3", "label-r3", "wire-return"
+      ],
+      "loop-all": [
+        "comp-battery", "wire-top-left", "wire-split-upper", "wire-split-lower",
+        "resistor-1", "label-r1", "resistor-2", "label-r2",
+        "wire-merge-upper", "wire-merge-lower", "wire-to-r3", "resistor-3", "label-r3", "wire-return"
+      ]
+    };
+
+    const ids = elements[type] || [];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (el.tagName === "text") {
+          el.classList.add("hl-text");
+        } else if (el.tagName === "path" || el.tagName === "g") {
+          el.classList.add("hl-comp");
+          el.querySelectorAll("path, line").forEach(c => c.classList.add("hl-comp"));
+          el.querySelectorAll("text").forEach(t => t.classList.add("hl-text"));
+        } else {
+          el.classList.add("hl-wire");
+        }
+      }
+    });
+  }
+
+  function clearCircuitHighlight() {
+    document.querySelectorAll(".hl-wire, .hl-comp, .hl-text").forEach(el => {
+      el.classList.remove("hl-wire", "hl-comp", "hl-text");
+    });
+  }
+
+  function toggleHint() {
+    hintsActive = !hintsActive;
+    clearHighlights();
+
+    if (!hintsActive) {
+      hideInfo();
+      return;
+    }
+
+    const knowns = getKnowns();
+    const solvable = getSolvableCells(knowns);
+
+    let count = 0;
+    for (const [key, data] of Object.entries(solvable)) {
+      const input = document.querySelector(`input[data-key="${key}"]`);
+      if (input) {
+        input.classList.add("hint-solvable");
+        input.dataset.mathHint = data.text;
+        input.dataset.circuitHl = data.highlight;
+        count++;
+      }
+    }
+
+    showInfo("💡 Solvable Boxes Glowing Green", 
+      count > 0 
+        ? `There are <strong>${count}</strong> box(es) that can be solved right now in one step. Hover over any glowing box to see the formula and its circuit path!`
+        : `All current single-step deductions complete. Enter more values to unlock more!`
+    );
+  }
+
+  // Tooltip & Circuit Hover
+  const tooltip = document.getElementById("math-tooltip");
+
+  function handleCellHover(e) {
+    const input = e.target;
+    const hlKey = input.dataset.circuitHl || (input.dataset.key ? `r${input.dataset.key.split("-")[0]}` : null);
+    
+    if (hlKey) highlightCircuit(hlKey);
+
+    if (input.classList.contains("hint-solvable") && input.dataset.mathHint) {
+      tooltip.innerHTML = input.dataset.mathHint;
+      renderMath(tooltip);
+
+      const rect = input.getBoundingClientRect();
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 8}px`;
+      tooltip.classList.add("show");
+    }
+  }
+
+  function handleCellLeave() {
+    clearCircuitHighlight();
+    tooltip.classList.remove("show");
+  }
+
+  function stepWalkthrough() {
+    clearHighlights();
+
+    if (currentWalkthroughIndex >= walkthroughSteps.length) {
+      showInfo("Walkthrough Complete", "You have walked through the entire solution! Press Reset to try it on your own.");
+      return;
+    }
+
+    const step = walkthroughSteps[currentWalkthroughIndex];
+
+    step.sources.forEach(srcKey => {
+      const el = document.querySelector(`input[data-key="${srcKey}"]`);
+      if (el) el.classList.add("source-highlight");
+    });
+
+    const targetInput = document.querySelector(`input[data-key="${step.target}"]`);
+    if (targetInput) {
+      targetInput.value = step.val.toFixed(2);
+      targetInput.classList.add("correct");
+    }
+
+    highlightCircuit(step.highlight);
+    showInfo(step.title, step.desc);
+    currentWalkthroughIndex++;
+  }
+
+  function clearHighlights() {
+    document.querySelectorAll(".cell-input").forEach(input => {
+      input.classList.remove("hint-solvable", "source-highlight");
+      delete input.dataset.mathHint;
+      delete input.dataset.circuitHl;
+    });
+    clearCircuitHighlight();
+    tooltip.classList.remove("show");
+  }
+
+  function showInfo(title, desc) {
+    const box = document.getElementById("info-box");
+    document.getElementById("step-title").textContent = title;
+    const descEl = document.getElementById("step-desc");
+    descEl.innerHTML = desc;
+    renderMath(descEl);
+    box.classList.add("active");
+  }
+
+  function hideInfo() {
+    document.getElementById("info-box").classList.remove("active");
+    clearCircuitHighlight();
+  }
+
+  function resetTable() {
+    currentWalkthroughIndex = 0;
+    hintsActive = false;
+    hideInfo();
+    initTable();
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    initTable();
+    const checkKaTeX = setInterval(() => {
+      if (window.renderMathInElement) {
+        clearInterval(checkKaTeX);
+        renderMath();
+      }
+    }, 50);
+  });
+</script>
+
+</body>
+</html>
